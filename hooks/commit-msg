@@ -1,0 +1,45 @@
+#!/bin/sh
+
+# $1 is a file which contains commit message
+
+# detect our branch name
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+
+# detect task identifier from the branch name
+TASK_ID=$(echo $BRANCH_NAME | sed -nr 's/^sc-([0-9]+).*$/\1/p')
+
+# if we couldn't get task identifier then we cannot do anything
+if [ -z "$TASK_ID" ] ; then
+    exit 0
+fi
+
+# get commit message without comment lines and leading/trailing spaces
+COMMIT_MESSAGE=$(cat $1 | sed "/^#/ d" | sed "s/^\s+|\s+$//g")
+
+# if cleared message is empty then we won't append identifier:
+# let it be clear error from the git about empty commit message
+if [ -z "$COMMIT_MESSAGE" ] ; then
+    exit 0
+fi
+
+# get found identities from commit message
+COMMIT_IDS=$(echo $COMMIT_MESSAGE | grep -oP '(?<=sc|sc-)\d+')
+
+# try to find a suitable identifier and quit if it's found
+for CURRENT_ID in $COMMIT_IDS ; do
+    if [ "$CURRENT_ID" = "$TASK_ID" ] ; then
+        exit 0
+    fi
+done
+
+# define Shortcut identifier label
+TASKTRACKER_ID_LABEL="[sc-$TASK_ID]"
+
+# define append message text
+APPEND_MESSAGE="Appending Shortcut ID to your commit message"
+
+# printing our append message
+echo -e "\e[33m$APPEND_MESSAGE: \e[1m#$TASK_ID\e[0m"
+
+# append our task identifier label to the end of the commit message
+sed -i "$ s/$/\n\n$TASKTRACKER_ID_LABEL/" $1

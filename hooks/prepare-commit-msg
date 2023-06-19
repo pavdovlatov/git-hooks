@@ -1,0 +1,55 @@
+#!/bin/sh
+
+# $1 is a file which contains commit message
+# $2 is type of operation
+
+# if it's already defined commit message than we cannot do anything in this hook
+if [ "$2" = "message" ] ; then
+    exit 0
+fi
+
+# detect our branch name
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+
+# detect task identifier from the branch name
+TASK_ID=$(echo $BRANCH_NAME | sed -nr 's/^sc-([0-9]+).*$/\1/p')
+
+# if we couldn't get task identifier then we cannot do anything
+if [ -z "$TASK_ID" ] ; then
+    exit 0
+fi
+
+# get commit message without comment lines
+COMMIT_MESSAGE=$(cat $1 | sed "/^#/ d")
+
+# get founded identifiers from commit message
+COMMIT_IDS=$(echo $COMMIT_MESSAGE | grep -oP '(?<=sc|sc-)\d+')
+
+# try to find a suitable identifier and quit if it's found
+for CURRENT_ID in $COMMIT_IDS ; do
+    if [ "$CURRENT_ID" = "$TASK_ID" ] ; then
+        exit 0
+    fi
+done
+
+# define Shortcut identifier label
+TASKTRACKER_ID_LABEL="[sc-$TASK_ID]"
+
+# define lines count in commit message
+if [ -n "$COMMIT_MESSAGE" ] ; then
+    CONTENT_LINES_COUNT=$(echo -e $COMMIT_MESSAGE | wc -l)
+else
+    CONTENT_LINES_COUNT=0
+fi
+
+# define line number to append teamwork identifier
+SUBSTITUDE_LINE_NUMBER=$(( $CONTENT_LINES_COUNT + 1 ))
+
+# if there aren't any commit message then add one blank line
+if [ $CONTENT_LINES_COUNT = 0 ] ; then
+    sed -i '1 s/^/\n/' $1
+    SUBSTITUDE_LINE_NUMBER=$(( $SUBSTITUDE_LINE_NUMBER + 1 ))
+fi
+
+# append our task identifier label to the commit message
+sed -i "$SUBSTITUDE_LINE_NUMBER s/^/\n$TASKTRACKER_ID_LABEL\n/" $1
